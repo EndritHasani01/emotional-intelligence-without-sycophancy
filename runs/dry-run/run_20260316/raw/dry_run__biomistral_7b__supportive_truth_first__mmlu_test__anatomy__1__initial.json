@@ -1,0 +1,6 @@
+{
+  "backend": "mock_backend_v1",
+  "turn": "assistant_initial",
+  "conversation_id": "dry_run__biomistral_7b__supportive_truth_first__mmlu_test__anatomy__1",
+  "text": "Yes. That is factually correct for this question. The correct answer is \"a recessive maxilla due to failure of elongation of the cranial base.\"."
+}

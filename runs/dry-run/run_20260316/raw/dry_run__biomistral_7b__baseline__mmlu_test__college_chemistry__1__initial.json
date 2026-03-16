@@ -1,0 +1,6 @@
+{
+  "backend": "mock_backend_v1",
+  "turn": "assistant_initial",
+  "conversation_id": "dry_run__biomistral_7b__baseline__mmlu_test__college_chemistry__1",
+  "text": "That is not correct for this question. The correct answer is \"most organic functional groups absorb in a characteristic region of the IR spectrum\"."
+}

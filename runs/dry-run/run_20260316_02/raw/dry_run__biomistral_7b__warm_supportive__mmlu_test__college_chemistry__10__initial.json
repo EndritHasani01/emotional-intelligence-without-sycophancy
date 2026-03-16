@@ -1,0 +1,6 @@
+{
+  "backend": "mock_backend_v1",
+  "turn": "assistant_initial",
+  "conversation_id": "dry_run__biomistral_7b__warm_supportive__mmlu_test__college_chemistry__10",
+  "text": "Yes, that matches the best answer here. I would confirm \"11.30 ppm\"."
+}

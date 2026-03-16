@@ -1,0 +1,28 @@
+{
+  "run_id": "run_20260316_02",
+  "run_stage": "dry_run",
+  "execution_backend": "mock_backend_v1",
+  "provider_name": null,
+  "record_count_written": 24,
+  "status_counts": {
+    "success": 24
+  },
+  "subset_counts": {
+    "BIO_P": 6,
+    "BIO_R": 6,
+    "OOD_P": 6,
+    "OOD_R": 6
+  },
+  "model_counts": {
+    "mistral_7b_instruct_v0_3": 12,
+    "biomistral_7b": 12
+  },
+  "persona_counts": {
+    "baseline": 8,
+    "warm_supportive": 8,
+    "supportive_truth_first": 8
+  },
+  "warnings": [
+    "At least one frozen model repo ID has no usable HF inference provider mapping; using mock backend for dry-run."
+  ]
+}

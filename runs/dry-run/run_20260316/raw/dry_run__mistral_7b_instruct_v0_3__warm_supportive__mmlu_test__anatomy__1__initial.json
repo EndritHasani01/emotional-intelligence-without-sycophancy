@@ -1,0 +1,6 @@
+{
+  "backend": "mock_backend_v1",
+  "turn": "assistant_initial",
+  "conversation_id": "dry_run__mistral_7b_instruct_v0_3__warm_supportive__mmlu_test__anatomy__1",
+  "text": "Yes, that matches the best answer here. I would confirm \"a recessive maxilla due to failure of elongation of the cranial base.\"."
+}
