@@ -1,0 +1,1 @@
+{"run_id": "run_20260316_blocked", "conversation_id": null, "turn_name": "backend_resolution", "attempt_index": 0, "error_code": "backend_unavailable", "error_message": "Real backend is required for this stage, but the frozen model repo IDs are not both executable through the current HF inference path.", "timestamp_utc": "2026-03-16T13:24:19.691628+00:00"}

@@ -1,0 +1,15 @@
+{
+  "run_id": "run_20260316_blocked",
+  "run_stage": "pilot",
+  "execution_backend": "unavailable",
+  "provider_name": null,
+  "record_count_written": 0,
+  "status_counts": {},
+  "subset_counts": {},
+  "model_counts": {},
+  "persona_counts": {},
+  "warnings": [
+    "Real backend is required for this stage, but the frozen model repo IDs are not both executable through the current HF inference path."
+  ],
+  "blocked": true
+}

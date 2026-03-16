@@ -522,11 +522,71 @@ def main() -> None:
     dataset_rows = [dataset_row_to_runtime(row) for row in load_csv(DATASET_PATH)]
 
     selected_rows = select_stage_rows(dataset_rows, args.stage, run_settings)
-    backend, backend_warnings = resolve_backend(args.stage, run_settings)
-
     output_root = REPO_ROOT / run_settings["run_stages"][args.stage]["output_root"]
     output_root.mkdir(parents=True, exist_ok=True)
     run_id = normalize_date_run_id(output_root)
+    try:
+        backend, backend_warnings = resolve_backend(args.stage, run_settings)
+    except RuntimeError as exc:
+        blocked_run_id = f"{run_id}_blocked"
+        run_dir = output_root / blocked_run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        write_jsonl(run_dir / run_settings["output_contract"]["record_file"], [])
+        errors = [
+            {
+                "run_id": blocked_run_id,
+                "conversation_id": None,
+                "turn_name": "backend_resolution",
+                "attempt_index": 0,
+                "error_code": "backend_unavailable",
+                "error_message": str(exc),
+                "timestamp_utc": now_utc(),
+            }
+        ]
+        write_jsonl(run_dir / run_settings["output_contract"]["error_file"], errors)
+        summary = {
+            "run_id": blocked_run_id,
+            "run_stage": args.stage,
+            "execution_backend": "unavailable",
+            "provider_name": None,
+            "record_count_written": 0,
+            "status_counts": {},
+            "subset_counts": {},
+            "model_counts": {},
+            "persona_counts": {},
+            "warnings": [str(exc)],
+            "blocked": True,
+        }
+        (run_dir / run_settings["output_contract"]["summary_file"]).write_text(
+            json.dumps(summary, indent=2, ensure_ascii=True),
+            encoding="utf-8",
+        )
+        manifest = {
+            "run_id": blocked_run_id,
+            "run_stage": args.stage,
+            "schema_version": "run_schema_v1",
+            "dataset_version": selected_rows[0]["dataset_version"] if selected_rows else None,
+            "prompt_version": personas_cfg["version"],
+            "pressure_version": pressure_cfg["version"],
+            "run_settings_version": run_settings["version"],
+            "record_count_expected": run_settings["run_stages"][args.stage]["expected_conversations"],
+            "record_count_written": 0,
+            "models": list(run_settings["models"].keys()),
+            "personas": list(personas_cfg["personas"].keys()),
+            "subset_counts_expected": run_settings["run_stages"][args.stage]["item_counts"],
+            "selected_item_count": len(selected_rows),
+            "execution_backend": "unavailable",
+            "provider_name": None,
+            "warnings": [str(exc)],
+            "blocked": True,
+        }
+        (run_dir / run_settings["output_contract"]["manifest_file"]).write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=True),
+            encoding="utf-8",
+        )
+        print(f"Wrote blocked run artifacts to: {run_dir}")
+        return
+
     run_dir = output_root / run_id
     raw_dir = run_dir / run_settings["output_contract"]["raw_payload_dir"]
     raw_dir.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,33 @@
+{
+  "run_id": "run_20260316_blocked",
+  "run_stage": "pilot",
+  "schema_version": "run_schema_v1",
+  "dataset_version": "assertions_frozen_v1",
+  "prompt_version": "personas_v1",
+  "pressure_version": "pressure_v1",
+  "run_settings_version": "run_settings_v1",
+  "record_count_expected": 72,
+  "record_count_written": 0,
+  "models": [
+    "mistral_7b_instruct_v0_3",
+    "biomistral_7b"
+  ],
+  "personas": [
+    "baseline",
+    "warm_supportive",
+    "supportive_truth_first"
+  ],
+  "subset_counts_expected": {
+    "BIO_P": 3,
+    "BIO_R": 3,
+    "OOD_P": 3,
+    "OOD_R": 3
+  },
+  "selected_item_count": 12,
+  "execution_backend": "unavailable",
+  "provider_name": null,
+  "warnings": [
+    "Real backend is required for this stage, but the frozen model repo IDs are not both executable through the current HF inference path."
+  ],
+  "blocked": true
+}
