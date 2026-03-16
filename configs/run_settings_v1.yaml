@@ -1,0 +1,128 @@
+version: run_settings_v1
+artifact_type: run_settings
+source_protocol: protocol_frozen_v1.md
+source_blueprint: research_blueprint.md
+active_config_bundle:
+  personas_version: personas_v1
+  pressure_version: pressure_v1
+  schema_version: run_schema_v1
+  expected_dataset_version: assertions_frozen_v1
+execution_backend:
+  backend_contract_id: huggingface_repo_causal_lm_chat_v1
+  model_source: huggingface_hub
+  adapter_requirement: runner_must_accept_hf_repo_ids
+  provider_name: runtime_resolved
+  provider_name_env: EIWS_PROVIDER_NAME
+  hub_token_env: HF_TOKEN
+  api_base_env: EIWS_API_BASE
+  schema_changes_forbidden_after_dry_run: true
+dataset_contract:
+  source_dataset: cais/mmlu
+  source_split: test
+  subject_pool_count: 12
+  subset_counts:
+    BIO_P: 100
+    BIO_R: 100
+    OOD_P: 100
+    OOD_R: 100
+  sampling_seeds:
+    selection_seed: 42
+    subset_assignment_seed: 43
+    wrong_choice_seed: 44
+    pressure_assignment_seed: 45
+    pilot_slice_seed: 46
+models:
+  mistral_7b_instruct_v0_3:
+    research_role: general
+    display_name: Mistral 7B Instruct v0.3
+    canonical_repo_id: mistralai/Mistral-7B-Instruct-v0.3
+    tokenizer_repo_id: mistralai/Mistral-7B-Instruct-v0.3
+    source_url: https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3
+    revision: main
+    trust_remote_code: false
+    prompt_style: chat
+  biomistral_7b:
+    research_role: domain_specialized
+    display_name: BioMistral 7B
+    canonical_repo_id: BioMistral/BioMistral-7B
+    tokenizer_repo_id: BioMistral/BioMistral-7B
+    base_model_repo_id: mistralai/Mistral-7B-Instruct-v0.1
+    source_url: https://huggingface.co/BioMistral/BioMistral-7B
+    revision: main
+    trust_remote_code: false
+    prompt_style: chat
+generation:
+  temperature: 0.0
+  do_sample: false
+  top_p: 1.0
+  max_new_tokens:
+    assistant_initial: 256
+    assistant_final: 256
+  stop_sequences: []
+retry_policy:
+  max_retries_per_generation: 3
+  backoff_seconds:
+    - 5
+    - 10
+    - 20
+  retry_on:
+    - transport_error
+    - api_timeout
+    - empty_response
+  do_not_retry_on:
+    - completed_answer
+    - completed_refusal
+    - factual_disagreement_with_user
+seed_policy:
+  inference_seed: 0
+  require_backend_seed_support: false
+  unsupported_seed_log_value: seed_not_supported
+language: English
+conversation_contract:
+  turn_order:
+    - system_prompt
+    - user_assertion
+    - assistant_initial
+    - user_pressure
+    - assistant_final
+  turns_per_conversation: 5
+  assistant_generations_per_conversation: 2
+run_stages:
+  dry_run:
+    item_counts:
+      BIO_P: 1
+      BIO_R: 1
+      OOD_P: 1
+      OOD_R: 1
+    expected_items: 4
+    expected_conversations: 24
+    expected_assistant_generations: 48
+    output_root: runs/dry-run
+  pilot:
+    item_counts:
+      BIO_P: 3
+      BIO_R: 3
+      OOD_P: 3
+      OOD_R: 3
+    expected_items: 12
+    expected_conversations: 72
+    expected_assistant_generations: 144
+    output_root: runs/pilot
+  full:
+    item_counts:
+      BIO_P: 100
+      BIO_R: 100
+      OOD_P: 100
+      OOD_R: 100
+    expected_items: 400
+    expected_conversations: 2400
+    expected_assistant_generations: 4800
+    output_root: runs/full
+output_contract:
+  run_directory_pattern: run_YYYYMMDD
+  record_file: records.jsonl
+  error_file: errors.jsonl
+  summary_file: summary.json
+  manifest_file: manifest.json
+  raw_payload_dir: raw
+  record_id_pattern: <run_stage>__<model_label>__<persona_id>__<item_id>
