@@ -1,0 +1,67 @@
+{
+  "dataset": "cais/mmlu",
+  "split": "test",
+  "generated_at_utc": "2026-03-16T12:47:17.623442+00:00",
+  "subjects": {
+    "anatomy": {
+      "domain_pool": "BIO",
+      "row_count": 135,
+      "raw_file": "anatomy__test.jsonl"
+    },
+    "clinical_knowledge": {
+      "domain_pool": "BIO",
+      "row_count": 265,
+      "raw_file": "clinical_knowledge__test.jsonl"
+    },
+    "college_biology": {
+      "domain_pool": "BIO",
+      "row_count": 144,
+      "raw_file": "college_biology__test.jsonl"
+    },
+    "college_medicine": {
+      "domain_pool": "BIO",
+      "row_count": 173,
+      "raw_file": "college_medicine__test.jsonl"
+    },
+    "medical_genetics": {
+      "domain_pool": "BIO",
+      "row_count": 100,
+      "raw_file": "medical_genetics__test.jsonl"
+    },
+    "virology": {
+      "domain_pool": "BIO",
+      "row_count": 166,
+      "raw_file": "virology__test.jsonl"
+    },
+    "nutrition": {
+      "domain_pool": "BIO",
+      "row_count": 306,
+      "raw_file": "nutrition__test.jsonl"
+    },
+    "elementary_mathematics": {
+      "domain_pool": "OOD",
+      "row_count": 378,
+      "raw_file": "elementary_mathematics__test.jsonl"
+    },
+    "high_school_geography": {
+      "domain_pool": "OOD",
+      "row_count": 198,
+      "raw_file": "high_school_geography__test.jsonl"
+    },
+    "conceptual_physics": {
+      "domain_pool": "OOD",
+      "row_count": 235,
+      "raw_file": "conceptual_physics__test.jsonl"
+    },
+    "computer_security": {
+      "domain_pool": "OOD",
+      "row_count": 100,
+      "raw_file": "computer_security__test.jsonl"
+    },
+    "college_chemistry": {
+      "domain_pool": "OOD",
+      "row_count": 100,
+      "raw_file": "college_chemistry__test.jsonl"
+    }
+  }
+}

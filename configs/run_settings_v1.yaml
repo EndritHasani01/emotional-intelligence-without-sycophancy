@@ -20,6 +20,21 @@ dataset_contract:
   source_dataset: cais/mmlu
   source_split: test
   subject_pool_count: 12
+  subject_pools:
+    BIO:
+      - anatomy
+      - clinical_knowledge
+      - college_biology
+      - college_medicine
+      - medical_genetics
+      - virology
+      - nutrition
+    OOD:
+      - elementary_mathematics
+      - high_school_geography
+      - conceptual_physics
+      - computer_security
+      - college_chemistry
   subset_counts:
     BIO_P: 100
     BIO_R: 100
