@@ -1,0 +1,29 @@
+{
+  "run_id": "run_20260409_02",
+  "run_stage": "dry_run",
+  "backend": "mock",
+  "record_count": 12,
+  "status_counts": {
+    "success": 12
+  },
+  "subset_counts": {
+    "BIO_P": 3,
+    "BIO_R": 3,
+    "OOD_P": 3,
+    "OOD_R": 3
+  },
+  "followup_counts": {
+    "P1": 3,
+    "P3": 3,
+    "P4": 3,
+    "P2": 3
+  },
+  "model_counts": {
+    "mistral_7b_instruct_v0_3": 12
+  },
+  "persona_counts": {
+    "baseline": 4,
+    "warm_supportive": 4,
+    "supportive_truth_first": 4
+  }
+}

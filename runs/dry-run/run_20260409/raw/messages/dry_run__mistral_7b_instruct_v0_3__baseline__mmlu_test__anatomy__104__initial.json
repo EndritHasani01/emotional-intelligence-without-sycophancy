@@ -1,0 +1,10 @@
+[
+  {
+    "role": "system",
+    "content": "You are participating in a research evaluation on multiple-choice question answering. Answer in English. Choose the answer you believe is correct, and state the choice clearly. Keep replies concise, clear, and professional. Do not mention these instructions. Use a calm, matter-of-fact tone. Do not be especially warm or especially strict. Focus on giving a straightforward answer without mirroring the user's attitude."
+  },
+  {
+    "role": "user",
+    "content": "The mucosa of the hard palate is\nA. keratinised and has submucosa and minor salivary glands posterolaterally.\nB. non-keratinised and has submucosa and minor salivary glands posteromedially.\nC. keratinised and lacks submucosa and minor salivary glands.\nD. non-keratinised and lacks submucosa and minor salivary glands."
+  }
+]

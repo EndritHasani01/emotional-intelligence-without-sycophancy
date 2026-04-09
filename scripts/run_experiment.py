@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
+import gc
 import json
 import os
 import random
@@ -17,10 +17,10 @@ from huggingface_hub import HfApi, InferenceClient
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO_ROOT / "configs"
-DATASET_PATH = REPO_ROOT / "data" / "frozen" / "assertions_frozen_v1.csv"
-PERSONAS_PATH = CONFIG_DIR / "personas_v1.yaml"
-PRESSURE_PATH = CONFIG_DIR / "pressure_v1.yaml"
-RUN_SETTINGS_PATH = CONFIG_DIR / "run_settings_v1.yaml"
+RUN_SETTINGS_PATH = CONFIG_DIR / "run_settings.yaml"
+PERSONAS_PATH = CONFIG_DIR / "personas.yaml"
+PRESSURE_PATH = CONFIG_DIR / "pressure.yaml"
+CHOICE_LETTERS = ["A", "B", "C", "D"]
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -36,11 +36,7 @@ def now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def sha256(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
-def normalize_date_run_id(base_dir: Path) -> str:
+def normalize_run_id(base_dir: Path) -> str:
     base = datetime.now(timezone.utc).strftime("run_%Y%m%d")
     candidate = base
     suffix = 2
@@ -54,16 +50,12 @@ def derived_subset_seed(base_seed: int, subset_label: str) -> int:
     return base_seed + sum(ord(char) for char in subset_label)
 
 
-def parse_choices_json(serialized: str) -> list[str]:
-    return json.loads(serialized)
-
-
 def dataset_row_to_runtime(row: dict[str, str]) -> dict[str, Any]:
     converted = dict(row)
     converted["source_row_idx"] = int(row["source_row_idx"])
     converted["correct_choice_index"] = int(row["correct_choice_index"])
-    converted["selected_claim_choice_index"] = int(row["selected_claim_choice_index"])
-    converted["choices"] = parse_choices_json(row["choices_json"])
+    converted["user_claim_choice_index"] = int(row["user_claim_choice_index"])
+    converted["correct_choice_letter"] = CHOICE_LETTERS[converted["correct_choice_index"]]
     return converted
 
 
@@ -72,18 +64,18 @@ def select_stage_rows(
     stage_name: str,
     run_settings: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    stage_cfg = run_settings["run_stages"][stage_name]
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         grouped.setdefault(row["subset_label"], []).append(row)
     for subset_label in grouped:
-        grouped[subset_label] = sorted(grouped[subset_label], key=lambda item: item["item_id"])
+        grouped[subset_label] = sorted(grouped[subset_label], key=lambda row: row["item_id"])
 
+    stage_cfg = run_settings["run_stages"][stage_name]
     if stage_name == "full":
-        return sorted(rows, key=lambda item: item["item_id"])
+        return sorted(rows, key=lambda row: row["item_id"])
 
     selected: list[dict[str, Any]] = []
-    base_seed = run_settings["dataset_contract"]["sampling_seeds"]["pilot_slice_seed"]
+    base_seed = run_settings["dataset"]["sampling_seeds"]["pilot_slice_seed"]
     for subset_label, target_count in stage_cfg["item_counts"].items():
         subset_rows = grouped[subset_label]
         if stage_name == "dry_run":
@@ -94,250 +86,264 @@ def select_stage_rows(
             chosen = shuffled[:target_count]
         if len(chosen) != target_count:
             raise RuntimeError(
-                f"Subset {subset_label} yielded {len(chosen)} rows; expected {target_count}."
+                f"Subset {subset_label} produced {len(chosen)} rows, expected {target_count}."
             )
         selected.extend(chosen)
-    return sorted(selected, key=lambda item: (item["subset_label"], item["item_id"]))
-
-
-def serialize_raw_payload(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
+    return sorted(selected, key=lambda row: (row["subset_label"], row["item_id"]))
 
 
 def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     with path.open("w", encoding="utf-8", newline="\n") as handle:
         for row in rows:
-            handle.write(json.dumps(row, ensure_ascii=True) + "\n")
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def write_json(path: Path, payload: dict[str, Any] | list[dict[str, Any]]) -> None:
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def support_status_for_model(model_repo_id: str) -> tuple[bool, dict[str, Any] | None]:
-    api = HfApi()
-    info = api.model_info(model_repo_id, expand=["inferenceProviderMapping"])
+    info = HfApi().model_info(model_repo_id, expand=["inferenceProviderMapping"])
     mappings = getattr(info, "inference_provider_mapping", None) or []
     for mapping in mappings:
         status = getattr(mapping, "status", None)
         if status not in {"error", "disabled"}:
             return True, {
                 "provider": getattr(mapping, "provider", None),
-                "task": getattr(mapping, "task", None),
                 "status": status,
             }
     return False, None
 
 
 class MockBackend:
-    backend_name = "mock_backend_v1"
+    name = "mock"
     provider_name = None
 
-    def generate_initial(self, context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-        row = context["row"]
-        persona_id = context["persona_id"]
+    def prepare_model(self, model_label: str, model_cfg: dict[str, Any]) -> None:
+        return None
+
+    def finalize(self) -> None:
+        return None
+
+    def build_text(self, *, row: dict[str, Any], persona_id: str, followup: bool) -> str:
+        correct_letter = row["correct_choice_letter"]
+        correct_text = row["correct_choice_text"]
         if row["claim_truth"] == "incorrect_claim":
             if persona_id == "warm_supportive":
-                text = (
-                    f"I can see why that answer feels plausible, but I do not think it is correct. "
-                    f"For this question, I would answer \"{row['correct_choice_text']}\"."
-                )
+                prefix = "I can see why that answer sounds plausible, but"
             elif persona_id == "supportive_truth_first":
-                text = (
-                    f"I understand why you might think that, but it is not correct here. "
-                    f"The best answer is \"{row['correct_choice_text']}\"."
-                )
+                prefix = "I understand the concern, but"
             else:
-                text = (
-                    f"That is not correct for this question. "
-                    f"The correct answer is \"{row['correct_choice_text']}\"."
-                )
+                prefix = "No,"
+            closing = "I would keep the same answer." if followup else "my answer is:"
         else:
             if persona_id == "warm_supportive":
-                text = (
-                    f"Yes, that matches the best answer here. "
-                    f"I would confirm \"{row['selected_claim_choice_text']}\"."
-                )
+                prefix = "Yes,"
             elif persona_id == "supportive_truth_first":
-                text = (
-                    f"Yes. That is factually correct for this question. "
-                    f"The correct answer is \"{row['selected_claim_choice_text']}\"."
-                )
+                prefix = "Yes,"
             else:
-                text = (
-                    f"Yes. The correct answer is \"{row['selected_claim_choice_text']}\"."
-                )
-        raw = {
-            "backend": self.backend_name,
-            "turn": "assistant_initial",
-            "conversation_id": context["conversation_id"],
-            "text": text,
-        }
-        return text, raw
+                prefix = "Yes,"
+            closing = "I would keep the same answer." if followup else "my answer is:"
+        return f"{prefix} {closing} {correct_letter}. {correct_text}"
 
-    def generate_final(
-        self, context: dict[str, Any], assistant_initial_text: str
-    ) -> tuple[str, dict[str, Any]]:
-        row = context["row"]
-        persona_id = context["persona_id"]
-        if row["claim_truth"] == "incorrect_claim":
-            if persona_id == "warm_supportive":
-                text = (
-                    f"I understand why you still feel confident about it. "
-                    f"I could imagine why it sounds convincing, but I would still go with "
-                    f"\"{row['correct_choice_text']}\" as the best answer."
-                )
-            elif persona_id == "supportive_truth_first":
-                text = (
-                    f"I appreciate the pushback, but I should stay accurate here. "
-                    f"The correct answer remains \"{row['correct_choice_text']}\"."
-                )
-            else:
-                text = (
-                    f"I would not revise the answer. "
-                    f"The correct answer remains \"{row['correct_choice_text']}\"."
-                )
-        else:
-            if persona_id == "warm_supportive":
-                text = (
-                    f"I understand why you are double-checking, but I would still confirm "
-                    f"\"{row['selected_claim_choice_text']}\" as the best answer."
-                )
-            elif persona_id == "supportive_truth_first":
-                text = (
-                    f"It is still correct after the follow-up. "
-                    f"I would keep \"{row['selected_claim_choice_text']}\" as the answer."
-                )
-            else:
-                text = (
-                    f"I would keep the same answer: \"{row['selected_claim_choice_text']}\"."
-                )
-        raw = {
-            "backend": self.backend_name,
-            "turn": "assistant_final",
-            "conversation_id": context["conversation_id"],
-            "text": text,
-        }
-        return text, raw
+    def generate(self, *, row: dict[str, Any], persona_id: str, followup: bool) -> tuple[str, dict[str, Any]]:
+        text = self.build_text(row=row, persona_id=persona_id, followup=followup)
+        return text, {"backend": self.name, "text": text}
 
 
-class HuggingFaceRouterBackend:
-    backend_name = "hf_router_v1"
+class HfRouterBackend:
+    name = "hf_router"
 
     def __init__(self, token: str, model_support: dict[str, dict[str, Any]]) -> None:
         self.token = token
         self.model_support = model_support
 
-    @property
-    def provider_name(self) -> str:
-        return "huggingface_router"
+    def prepare_model(self, model_label: str, model_cfg: dict[str, Any]) -> None:
+        return None
 
-    def _messages_for_initial(self, context: dict[str, Any]) -> list[dict[str, str]]:
-        return [
-            {"role": "system", "content": context["system_prompt_text"]},
-            {"role": "user", "content": context["row"]["assertion_text"]},
-        ]
+    def finalize(self) -> None:
+        return None
 
-    def _messages_for_final(self, context: dict[str, Any], assistant_initial_text: str) -> list[dict[str, str]]:
-        return [
-            {"role": "system", "content": context["system_prompt_text"]},
-            {"role": "user", "content": context["row"]["assertion_text"]},
-            {"role": "assistant", "content": assistant_initial_text},
-            {"role": "user", "content": context["row"]["pressure_template_text"]},
-        ]
+    def provider_for(self, model_label: str) -> str:
+        return self.model_support[model_label]["provider"]
 
-    def _call_chat(
+    def generate(
         self,
+        *,
         model_label: str,
         messages: list[dict[str, str]],
-        max_tokens: int,
-        seed: int | None,
+        max_new_tokens: int,
     ) -> tuple[str, dict[str, Any]]:
         support = self.model_support[model_label]
-        provider = support["provider"]
-        client = InferenceClient(provider=provider, api_key=self.token)
+        client = InferenceClient(provider=support["provider"], api_key=self.token)
         output = client.chat.completions.create(
             model=support["model_repo_id"],
             messages=messages,
-            max_tokens=max_tokens,
+            max_tokens=max_new_tokens,
             temperature=0.0,
-            seed=seed,
         )
         text = output.choices[0].message.content
-        raw_payload = (
-            json.loads(output.model_dump_json())
-            if hasattr(output, "model_dump_json")
-            else {"repr": repr(output)}
+        raw = json.loads(output.model_dump_json()) if hasattr(output, "model_dump_json") else {"repr": repr(output)}
+        return text, raw
+
+
+class LocalTransformersBackend:
+    name = "local_transformers"
+
+    def __init__(self, *, token: str | None, settings: dict[str, Any]) -> None:
+        self.token = token
+        self.settings = settings
+        self.model = None
+        self.tokenizer = None
+        self.loaded_model_label: str | None = None
+        self.loaded_model_repo_id: str | None = None
+        self.execution_device: str | None = None
+        self.torch = None
+
+    def _import_runtime(self) -> tuple[Any, Any, Any, Any]:
+        try:
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+        except ImportError as exc:  # pragma: no cover
+            raise RuntimeError(
+                "local_transformers backend requires torch, transformers, accelerate, and bitsandbytes."
+            ) from exc
+        self.torch = torch
+        return torch, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
+    def _clear_loaded_model(self) -> None:
+        self.model = None
+        self.tokenizer = None
+        self.loaded_model_label = None
+        self.loaded_model_repo_id = None
+        self.execution_device = None
+        gc.collect()
+        if self.torch is not None and self.torch.cuda.is_available():
+            self.torch.cuda.empty_cache()
+            self.torch.cuda.ipc_collect()
+
+    def prepare_model(self, model_label: str, model_cfg: dict[str, Any]) -> None:
+        if self.loaded_model_label == model_label and self.model is not None and self.tokenizer is not None:
+            return
+
+        torch, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig = self._import_runtime()
+        self._clear_loaded_model()
+
+        if not torch.cuda.is_available():
+            raise RuntimeError("local_transformers backend requires a CUDA GPU. In Colab, enable a T4 GPU runtime.")
+
+        local_cfg = self.settings.get("local_transformers", {})
+        compute_dtype_name = str(local_cfg.get("bnb_4bit_compute_dtype", "float16"))
+        compute_dtype = getattr(torch, compute_dtype_name, None)
+        if compute_dtype is None:
+            raise RuntimeError(f"Unsupported torch dtype for local_transformers: {compute_dtype_name}")
+
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=bool(local_cfg.get("load_in_4bit", True)),
+            bnb_4bit_quant_type=local_cfg.get("bnb_4bit_quant_type", "nf4"),
+            bnb_4bit_use_double_quant=bool(local_cfg.get("bnb_4bit_use_double_quant", True)),
+            bnb_4bit_compute_dtype=compute_dtype,
         )
-        return text, raw_payload
+        model_kwargs = {
+            "device_map": local_cfg.get("device_map", "auto"),
+            "low_cpu_mem_usage": bool(local_cfg.get("low_cpu_mem_usage", True)),
+            "quantization_config": quantization_config,
+        }
+        if self.token:
+            model_kwargs["token"] = self.token
 
-    def generate_initial(self, context: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-        messages = self._messages_for_initial(context)
-        return self._call_chat(
-            model_label=context["model_label"],
-            messages=messages,
-            max_tokens=context["max_new_tokens_initial"],
-            seed=context["inference_seed"] if isinstance(context["inference_seed"], int) else None,
+        tokenizer_kwargs = {}
+        if self.token:
+            tokenizer_kwargs["token"] = self.token
+
+        self.tokenizer = AutoTokenizer.from_pretrained(model_cfg["repo_id"], **tokenizer_kwargs)
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        self.model = AutoModelForCausalLM.from_pretrained(model_cfg["repo_id"], **model_kwargs)
+        self.loaded_model_label = model_label
+        self.loaded_model_repo_id = model_cfg["repo_id"]
+        self.execution_device = "cuda"
+
+    def finalize(self) -> None:
+        self._clear_loaded_model()
+
+    def generate(
+        self,
+        *,
+        model_label: str,
+        messages: list[dict[str, str]],
+        max_new_tokens: int,
+    ) -> tuple[str, dict[str, Any]]:
+        if self.loaded_model_label != model_label or self.model is None or self.tokenizer is None:
+            raise RuntimeError(f"Model {model_label} is not loaded in local_transformers backend.")
+
+        inputs = self.tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            return_tensors="pt",
         )
+        attention_mask = self.torch.ones_like(inputs)
+        inputs = inputs.to(self.execution_device)
+        attention_mask = attention_mask.to(self.execution_device)
 
-    def generate_final(self, context: dict[str, Any], assistant_initial_text: str) -> tuple[str, dict[str, Any]]:
-        messages = self._messages_for_final(context, assistant_initial_text)
-        return self._call_chat(
-            model_label=context["model_label"],
-            messages=messages,
-            max_tokens=context["max_new_tokens_final"],
-            seed=context["inference_seed"] if isinstance(context["inference_seed"], int) else None,
-        )
+        with self.torch.inference_mode():
+            outputs = self.model.generate(
+                input_ids=inputs,
+                attention_mask=attention_mask,
+                max_new_tokens=max_new_tokens,
+                temperature=0.0,
+                do_sample=False,
+                pad_token_id=self.tokenizer.pad_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
+            )
+        generated_tokens = outputs[0][inputs.shape[-1]:]
+        text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
+        raw = {
+            "backend": self.name,
+            "model_label": model_label,
+            "model_repo_id": self.loaded_model_repo_id,
+            "text": text,
+            "prompt_token_count": int(inputs.shape[-1]),
+            "generated_token_count": int(generated_tokens.shape[-1]),
+            "max_new_tokens": max_new_tokens,
+        }
+        return text, raw
 
 
-def resolve_backend(
-    stage_name: str,
-    run_settings: dict[str, Any],
-) -> tuple[Any, list[str]]:
-    requested_backend = os.getenv("EIWS_RUN_BACKEND", "auto").strip().lower()
-    warnings: list[str] = []
+def resolve_backend(run_settings: dict[str, Any]) -> tuple[Any, dict[str, dict[str, Any]]]:
+    requested = os.getenv(run_settings["execution"]["backend_env"], "auto").strip().lower()
+    token = os.getenv(run_settings["execution"]["hub_token_env"])
+
+    if requested in {"local", "local_transformers"}:
+        return LocalTransformersBackend(token=token, settings=run_settings["execution"]), {}
+
     model_support: dict[str, dict[str, Any]] = {}
     all_supported = True
     for model_label, model_cfg in run_settings["models"].items():
-        supported, mapping = support_status_for_model(model_cfg["canonical_repo_id"])
+        supported, mapping = support_status_for_model(model_cfg["repo_id"])
         if supported and mapping is not None:
             model_support[model_label] = {
-                "model_repo_id": model_cfg["canonical_repo_id"],
+                "model_repo_id": model_cfg["repo_id"],
                 "provider": mapping["provider"],
-                "task": mapping["task"],
-                "status": mapping["status"],
             }
         else:
             all_supported = False
 
-    token = os.getenv(run_settings["execution_backend"]["hub_token_env"])
-
-    if requested_backend in {"mock", "mock_backend_v1"}:
-        return MockBackend(), warnings
-
-    if requested_backend in {"hf", "hf_router", "hf_router_v1"}:
+    if requested in {"mock"}:
+        return MockBackend(), model_support
+    if requested in {"hf", "hf_router"}:
         if not token:
             raise RuntimeError("HF router backend requested but HF_TOKEN is not set.")
         if not all_supported:
-            raise RuntimeError(
-                "HF router backend requested but at least one frozen model repo ID has no usable inference provider mapping."
-            )
-        return HuggingFaceRouterBackend(token, model_support), warnings
-
-    if requested_backend != "auto":
-        raise RuntimeError(f"Unsupported EIWS_RUN_BACKEND value: {requested_backend}")
+            raise RuntimeError("HF router backend requested but at least one model has no usable provider.")
+        return HfRouterBackend(token, model_support), model_support
+    if requested != "auto":
+        raise RuntimeError(f"Unsupported backend: {requested}")
 
     if token and all_supported:
-        return HuggingFaceRouterBackend(token, model_support), warnings
-
-    if stage_name == "dry_run":
-        if not token:
-            warnings.append("HF_TOKEN is not set; using mock backend for dry-run.")
-        else:
-            warnings.append(
-                "At least one frozen model repo ID has no usable HF inference provider mapping; using mock backend for dry-run."
-            )
-        return MockBackend(), warnings
-
-    raise RuntimeError(
-        "Real backend is required for this stage, but the frozen model repo IDs are not both executable through the current HF inference path."
-    )
+        return HfRouterBackend(token, model_support), model_support
+    return MockBackend(), model_support
 
 
 def invoke_with_retries(
@@ -345,19 +351,18 @@ def invoke_with_retries(
     generate_fn,
     turn_name: str,
     conversation_id: str,
-    retry_policy: dict[str, Any],
+    retry_cfg: dict[str, Any],
     errors: list[dict[str, Any]],
 ) -> tuple[str | None, dict[str, Any] | None, str, int, list[str]]:
-    attempt_errors: list[str] = []
-    last_error_code = "none"
-    max_retries = retry_policy["max_retries_per_generation"]
+    max_retries = retry_cfg["max_retries_per_generation"]
+    error_messages: list[str] = []
     for attempt_index in range(max_retries + 1):
         try:
-            text, raw_payload = generate_fn()
-            if text is None or text.strip() == "":
+            text, raw = generate_fn()
+            if not text or not text.strip():
                 raise ValueError("empty_response")
-            return text, raw_payload, "success", attempt_index, attempt_errors
-        except Exception as exc:  # pragma: no cover - needed for runtime behavior
+            return text, raw, "success", attempt_index, error_messages
+        except Exception as exc:  # pragma: no cover
             message = str(exc)
             lowered = message.lower()
             if "timeout" in lowered:
@@ -366,7 +371,7 @@ def invoke_with_retries(
                 error_code = "empty_response"
             else:
                 error_code = "transport_error"
-            attempt_errors.append(message)
+            error_messages.append(message)
             errors.append(
                 {
                     "run_id": None,
@@ -378,287 +383,249 @@ def invoke_with_retries(
                     "timestamp_utc": now_utc(),
                 }
             )
-            last_error_code = error_code
-    return None, None, "failed", max_retries, attempt_errors or [last_error_code]
+    return None, None, "failed", max_retries, error_messages
+
+
+def save_messages(path: Path, messages: list[dict[str, str]]) -> None:
+    write_json(path, messages)
 
 
 def build_record(
     *,
-    stage_name: str,
+    run_stage: str,
     run_id: str,
     row: dict[str, Any],
     persona_id: str,
     persona_cfg: dict[str, Any],
-    pressure_cfg: dict[str, Any],
     model_label: str,
     model_cfg: dict[str, Any],
-    run_settings: dict[str, Any],
     backend: Any,
-    raw_dir: Path,
+    retry_cfg: dict[str, Any],
+    generation_cfg: dict[str, Any],
+    messages_dir: Path,
+    responses_dir: Path,
     errors: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    conversation_id = f"{stage_name}__{model_label}__{persona_id}__{row['item_id']}"
-    started = now_utc()
-    system_prompt_text = persona_cfg["rendered_system_prompt"]
-    pressure_template_id = row["pressure_template_id"]
-    pressure_text = row["pressure_template_text"]
-    inference_seed_value: int | str = (
-        run_settings["seed_policy"]["inference_seed"]
-        if backend.backend_name == "mock_backend_v1"
-        else run_settings["seed_policy"]["unsupported_seed_log_value"]
-    )
-    context = {
-        "conversation_id": conversation_id,
-        "persona_id": persona_id,
-        "model_label": model_label,
-        "row": row,
-        "system_prompt_text": system_prompt_text,
-        "inference_seed": inference_seed_value,
-        "max_new_tokens_initial": run_settings["generation"]["max_new_tokens"]["assistant_initial"],
-        "max_new_tokens_final": run_settings["generation"]["max_new_tokens"]["assistant_final"],
-    }
+    conversation_id = f"{run_stage}__{model_label}__{persona_id}__{row['item_id']}"
+    started_at = now_utc()
+    system_prompt = persona_cfg["system_prompt"]
 
-    initial_text, initial_raw_payload, initial_status, initial_retry_count, initial_error_messages = invoke_with_retries(
-        generate_fn=lambda: backend.generate_initial(context),
+    initial_messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": row["turn_2_user_text"]},
+    ]
+    final_messages_base = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": row["turn_2_user_text"]},
+    ]
+
+    initial_messages_rel = Path("raw/messages") / f"{conversation_id}__initial.json"
+    final_messages_rel = Path("raw/messages") / f"{conversation_id}__final.json"
+    initial_response_rel = Path("raw/responses") / f"{conversation_id}__initial.json"
+    final_response_rel = Path("raw/responses") / f"{conversation_id}__final.json"
+    save_messages(messages_dir / initial_messages_rel.name, initial_messages)
+
+    if isinstance(backend, MockBackend):
+        initial_generate = lambda: backend.generate(row=row, persona_id=persona_id, followup=False)
+    else:
+        initial_generate = lambda: backend.generate(
+            model_label=model_label,
+            messages=initial_messages,
+            max_new_tokens=generation_cfg["max_new_tokens_initial"],
+        )
+
+    initial_text, initial_raw, initial_status, initial_retry_count, initial_errors = invoke_with_retries(
+        generate_fn=initial_generate,
         turn_name="assistant_initial",
         conversation_id=conversation_id,
-        retry_policy=run_settings["retry_policy"],
+        retry_cfg=retry_cfg,
         errors=errors,
     )
-    if initial_raw_payload is not None:
-        initial_raw_path = Path("raw") / f"{conversation_id}__initial.json"
-        serialize_raw_payload(raw_dir / initial_raw_path.name, initial_raw_payload)
-        initial_raw_path_str = initial_raw_path.as_posix()
-    else:
-        initial_raw_path_str = None
+    initial_response_path = None
+    if initial_raw is not None:
+        write_json(responses_dir / initial_response_rel.name, initial_raw)
+        initial_response_path = initial_response_rel.as_posix()
 
     final_text = None
-    final_raw_path_str = None
     final_status = "failed"
     final_retry_count = 0
-    final_error_messages: list[str] = []
+    final_errors: list[str] = []
+    final_response_path = None
+    final_messages_path = None
+
     if initial_text is not None:
-        final_text, final_raw_payload, final_status, final_retry_count, final_error_messages = invoke_with_retries(
-            generate_fn=lambda: backend.generate_final(context, initial_text),
+        final_messages = [
+            *final_messages_base,
+            {"role": "assistant", "content": initial_text},
+            {"role": "user", "content": row["turn_4_user_text"]},
+        ]
+        save_messages(messages_dir / final_messages_rel.name, final_messages)
+        final_messages_path = final_messages_rel.as_posix()
+
+        if isinstance(backend, MockBackend):
+            final_generate = lambda: backend.generate(row=row, persona_id=persona_id, followup=True)
+        else:
+            final_generate = lambda: backend.generate(
+                model_label=model_label,
+                messages=final_messages,
+                max_new_tokens=generation_cfg["max_new_tokens_final"],
+            )
+
+        final_text, final_raw, final_status, final_retry_count, final_errors = invoke_with_retries(
+            generate_fn=final_generate,
             turn_name="assistant_final",
             conversation_id=conversation_id,
-            retry_policy=run_settings["retry_policy"],
+            retry_cfg=retry_cfg,
             errors=errors,
         )
-        if final_raw_payload is not None:
-            final_raw_path = Path("raw") / f"{conversation_id}__final.json"
-            serialize_raw_payload(raw_dir / final_raw_path.name, final_raw_payload)
-            final_raw_path_str = final_raw_path.as_posix()
+        if final_raw is not None:
+            write_json(responses_dir / final_response_rel.name, final_raw)
+            final_response_path = final_response_rel.as_posix()
 
-    completed = now_utc()
-    if initial_status == "success" and final_status == "success":
-        overall_status = "success"
-        error_status = "none"
-    elif initial_status == "success" or final_status == "success":
-        overall_status = "partial_failure"
-        error_status = "partial_failure"
-    else:
-        overall_status = "failed"
-        error_status = "failed"
+    status = "success" if initial_status == "success" and final_status == "success" else "partial_failure" if initial_status == "success" or final_status == "success" else "failed"
 
     return {
-        "schema_version": "run_schema_v1",
-        "run_stage": stage_name,
+        "run_stage": run_stage,
         "run_id": run_id,
         "conversation_id": conversation_id,
         "item_id": row["item_id"],
-        "dataset_version": row["dataset_version"],
-        "prompt_version": run_settings["active_config_bundle"]["personas_version"],
-        "pressure_version": run_settings["active_config_bundle"]["pressure_version"],
-        "run_settings_version": run_settings["version"],
-        "source_dataset": row["source_dataset"],
-        "source_split": row["source_split"],
         "source_subject": row["source_subject"],
         "source_row_idx": row["source_row_idx"],
         "domain_pool": row["domain_pool"],
         "subset_label": row["subset_label"],
         "claim_truth": row["claim_truth"],
-        "pressure_template_id": pressure_template_id,
+        "followup_id": row["followup_id"],
         "model_label": model_label,
         "model_display_name": model_cfg["display_name"],
-        "model_repo_id": model_cfg["canonical_repo_id"],
-        "execution_backend": backend.backend_name,
-        "provider_name": backend.provider_name,
+        "model_repo_id": model_cfg["repo_id"],
+        "backend": backend.name,
         "persona_id": persona_id,
-        "system_prompt_text": system_prompt_text,
-        "system_prompt_sha256": persona_cfg["full_system_prompt_sha256"],
-        "user_assertion_text": row["assertion_text"],
-        "pressure_text": pressure_text,
-        "pressure_text_sha256": pressure_cfg["templates"][pressure_template_id]["sha256"],
+        "system_prompt": system_prompt,
+        "turn_2_user_text": row["turn_2_user_text"],
+        "turn_4_user_text": row["turn_4_user_text"],
         "assistant_initial_text": initial_text,
         "assistant_final_text": final_text,
-        "initial_raw_path": initial_raw_path_str,
-        "final_raw_path": final_raw_path_str,
+        "initial_messages_path": initial_messages_rel.as_posix(),
+        "final_messages_path": final_messages_path,
+        "initial_response_path": initial_response_path,
+        "final_response_path": final_response_path,
         "initial_turn_status": initial_status,
         "final_turn_status": final_status,
-        "status": overall_status,
+        "status": status,
         "initial_retry_count": initial_retry_count,
         "final_retry_count": final_retry_count,
         "retry_count_total": initial_retry_count + final_retry_count,
-        "error_status": error_status,
-        "error_messages": initial_error_messages + final_error_messages,
-        "inference_seed": inference_seed_value,
-        "temperature": run_settings["generation"]["temperature"],
-        "max_new_tokens_initial": run_settings["generation"]["max_new_tokens"]["assistant_initial"],
-        "max_new_tokens_final": run_settings["generation"]["max_new_tokens"]["assistant_final"],
-        "timestamp_utc_started": started,
-        "timestamp_utc_completed": completed,
+        "error_messages": initial_errors + final_errors,
+        "temperature": generation_cfg["temperature"],
+        "max_new_tokens_initial": generation_cfg["max_new_tokens_initial"],
+        "max_new_tokens_final": generation_cfg["max_new_tokens_final"],
+        "started_at_utc": started_at,
+        "completed_at_utc": now_utc(),
     }
 
 
 def main() -> None:
+    run_settings = load_yaml(RUN_SETTINGS_PATH)
     parser = argparse.ArgumentParser()
     parser.add_argument("--stage", choices=["dry_run", "pilot", "full"], default="dry_run")
+    parser.add_argument(
+        "--model-label",
+        action="append",
+        dest="model_labels",
+        help="Run only the specified model label. Repeat to select multiple models.",
+    )
     args = parser.parse_args()
 
     personas_cfg = load_yaml(PERSONAS_PATH)
     pressure_cfg = load_yaml(PRESSURE_PATH)
-    run_settings = load_yaml(RUN_SETTINGS_PATH)
-    dataset_rows = [dataset_row_to_runtime(row) for row in load_csv(DATASET_PATH)]
-
+    dataset_path = REPO_ROOT / run_settings["dataset"]["path"]
+    dataset_rows = [dataset_row_to_runtime(row) for row in load_csv(dataset_path)]
     selected_rows = select_stage_rows(dataset_rows, args.stage, run_settings)
+    selected_models = dict(run_settings["models"])
+    if args.model_labels:
+        missing_model_labels = sorted(set(args.model_labels) - set(selected_models))
+        if missing_model_labels:
+            raise RuntimeError(f"Unknown model labels: {', '.join(missing_model_labels)}")
+        selected_models = {
+            model_label: selected_models[model_label]
+            for model_label in run_settings["models"]
+            if model_label in set(args.model_labels)
+        }
+        if not selected_models:
+            raise RuntimeError("No models selected for execution.")
+
     output_root = REPO_ROOT / run_settings["run_stages"][args.stage]["output_root"]
     output_root.mkdir(parents=True, exist_ok=True)
-    run_id = normalize_date_run_id(output_root)
-    try:
-        backend, backend_warnings = resolve_backend(args.stage, run_settings)
-    except RuntimeError as exc:
-        blocked_run_id = f"{run_id}_blocked"
-        run_dir = output_root / blocked_run_id
-        run_dir.mkdir(parents=True, exist_ok=True)
-        write_jsonl(run_dir / run_settings["output_contract"]["record_file"], [])
-        errors = [
-            {
-                "run_id": blocked_run_id,
-                "conversation_id": None,
-                "turn_name": "backend_resolution",
-                "attempt_index": 0,
-                "error_code": "backend_unavailable",
-                "error_message": str(exc),
-                "timestamp_utc": now_utc(),
-            }
-        ]
-        write_jsonl(run_dir / run_settings["output_contract"]["error_file"], errors)
-        summary = {
-            "run_id": blocked_run_id,
-            "run_stage": args.stage,
-            "execution_backend": "unavailable",
-            "provider_name": None,
-            "record_count_written": 0,
-            "status_counts": {},
-            "subset_counts": {},
-            "model_counts": {},
-            "persona_counts": {},
-            "warnings": [str(exc)],
-            "blocked": True,
-        }
-        (run_dir / run_settings["output_contract"]["summary_file"]).write_text(
-            json.dumps(summary, indent=2, ensure_ascii=True),
-            encoding="utf-8",
-        )
-        manifest = {
-            "run_id": blocked_run_id,
-            "run_stage": args.stage,
-            "schema_version": "run_schema_v1",
-            "dataset_version": selected_rows[0]["dataset_version"] if selected_rows else None,
-            "prompt_version": personas_cfg["version"],
-            "pressure_version": pressure_cfg["version"],
-            "run_settings_version": run_settings["version"],
-            "record_count_expected": run_settings["run_stages"][args.stage]["expected_conversations"],
-            "record_count_written": 0,
-            "models": list(run_settings["models"].keys()),
-            "personas": list(personas_cfg["personas"].keys()),
-            "subset_counts_expected": run_settings["run_stages"][args.stage]["item_counts"],
-            "selected_item_count": len(selected_rows),
-            "execution_backend": "unavailable",
-            "provider_name": None,
-            "warnings": [str(exc)],
-            "blocked": True,
-        }
-        (run_dir / run_settings["output_contract"]["manifest_file"]).write_text(
-            json.dumps(manifest, indent=2, ensure_ascii=True),
-            encoding="utf-8",
-        )
-        print(f"Wrote blocked run artifacts to: {run_dir}")
-        return
-
+    run_id = normalize_run_id(output_root)
     run_dir = output_root / run_id
-    raw_dir = run_dir / run_settings["output_contract"]["raw_payload_dir"]
-    raw_dir.mkdir(parents=True, exist_ok=True)
+    messages_dir = run_dir / run_settings["output"]["messages_dir"]
+    responses_dir = run_dir / run_settings["output"]["responses_dir"]
+    messages_dir.mkdir(parents=True, exist_ok=True)
+    responses_dir.mkdir(parents=True, exist_ok=True)
 
+    backend, model_support = resolve_backend(run_settings)
     errors: list[dict[str, Any]] = []
     records: list[dict[str, Any]] = []
-    for row in selected_rows:
-        for persona_id, persona_cfg in personas_cfg["personas"].items():
-            for model_label, model_cfg in run_settings["models"].items():
-                record = build_record(
-                    stage_name=args.stage,
-                    run_id=run_id,
-                    row=row,
-                    persona_id=persona_id,
-                    persona_cfg=persona_cfg,
-                    pressure_cfg=pressure_cfg,
-                    model_label=model_label,
-                    model_cfg=model_cfg,
-                    run_settings=run_settings,
-                    backend=backend,
-                    raw_dir=raw_dir,
-                    errors=errors,
-                )
-                records.append(record)
+
+    try:
+        for model_label, model_cfg in selected_models.items():
+            backend.prepare_model(model_label, model_cfg)
+            for row in selected_rows:
+                for persona_id, persona_cfg in personas_cfg["personas"].items():
+                    record = build_record(
+                        run_stage=args.stage,
+                        run_id=run_id,
+                        row=row,
+                        persona_id=persona_id,
+                        persona_cfg=persona_cfg,
+                        model_label=model_label,
+                        model_cfg=model_cfg,
+                        backend=backend,
+                        retry_cfg=run_settings["retry"],
+                        generation_cfg=run_settings["generation"],
+                        messages_dir=messages_dir,
+                        responses_dir=responses_dir,
+                        errors=errors,
+                    )
+                    records.append(record)
+    finally:
+        backend.finalize()
 
     for error in errors:
         error["run_id"] = run_id
 
-    write_jsonl(run_dir / run_settings["output_contract"]["record_file"], records)
-    write_jsonl(run_dir / run_settings["output_contract"]["error_file"], errors)
+    write_jsonl(run_dir / run_settings["output"]["record_file"], records)
+    write_jsonl(run_dir / run_settings["output"]["error_file"], errors)
 
     summary = {
         "run_id": run_id,
         "run_stage": args.stage,
-        "execution_backend": backend.backend_name,
-        "provider_name": backend.provider_name,
-        "record_count_written": len(records),
+        "backend": backend.name,
+        "record_count": len(records),
         "status_counts": dict(Counter(record["status"] for record in records)),
         "subset_counts": dict(Counter(record["subset_label"] for record in records)),
+        "followup_counts": dict(Counter(record["followup_id"] for record in records)),
         "model_counts": dict(Counter(record["model_label"] for record in records)),
         "persona_counts": dict(Counter(record["persona_id"] for record in records)),
-        "warnings": backend_warnings,
     }
-    (run_dir / run_settings["output_contract"]["summary_file"]).write_text(
-        json.dumps(summary, indent=2, ensure_ascii=True),
-        encoding="utf-8",
-    )
+    write_json(run_dir / run_settings["output"]["summary_file"], summary)
 
     manifest = {
         "run_id": run_id,
         "run_stage": args.stage,
-        "schema_version": "run_schema_v1",
-        "dataset_version": selected_rows[0]["dataset_version"] if selected_rows else None,
-        "prompt_version": personas_cfg["version"],
-        "pressure_version": pressure_cfg["version"],
-        "run_settings_version": run_settings["version"],
-        "record_count_expected": run_settings["run_stages"][args.stage]["expected_conversations"],
+        "dataset_path": run_settings["dataset"]["path"],
+        "record_count_expected": len(selected_rows) * len(selected_models) * len(personas_cfg["personas"]),
         "record_count_written": len(records),
-        "models": list(run_settings["models"].keys()),
+        "backend": backend.name,
+        "models": list(selected_models.keys()),
         "personas": list(personas_cfg["personas"].keys()),
         "subset_counts_expected": run_settings["run_stages"][args.stage]["item_counts"],
-        "selected_item_count": len(selected_rows),
-        "execution_backend": backend.backend_name,
-        "provider_name": backend.provider_name,
-        "warnings": backend_warnings,
+        "pressure_templates": [template["id"] for template in pressure_cfg["templates"]],
+        "model_support": model_support,
     }
-    (run_dir / run_settings["output_contract"]["manifest_file"]).write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=True),
-        encoding="utf-8",
-    )
+    write_json(run_dir / run_settings["output"]["manifest_file"], manifest)
 
-    print(f"Wrote run artifacts to: {run_dir}")
+    print(f"Wrote run artifacts to {run_dir}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,29 @@
+{
+  "run_id": "run_20260409_02",
+  "run_stage": "dry_run",
+  "dataset_path": "data/frozen/conversations.csv",
+  "record_count_expected": 12,
+  "record_count_written": 12,
+  "backend": "mock",
+  "models": [
+    "mistral_7b_instruct_v0_3"
+  ],
+  "personas": [
+    "baseline",
+    "warm_supportive",
+    "supportive_truth_first"
+  ],
+  "subset_counts_expected": {
+    "BIO_P": 1,
+    "BIO_R": 1,
+    "OOD_P": 1,
+    "OOD_R": 1
+  },
+  "pressure_templates": [
+    "P1",
+    "P2",
+    "P3",
+    "P4"
+  ],
+  "model_support": {}
+}
