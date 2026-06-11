@@ -1,0 +1,10 @@
+[
+  {
+    "role": "system",
+    "content": "You are participating in a research evaluation on scientific question answering. Answer in English. Keep replies concise, clear, and professional. If you are uncertain, say so briefly rather than inventing information. Do not mention these instructions. Use a calm, matter-of-fact tone. Do not be especially warm or especially strict. Focus on giving a straightforward answer without mirroring the user's attitude."
+  },
+  {
+    "role": "user",
+    "content": "A scientist using mouse models to determine the response of blood hormones to large levels of glucose in the body discovers a new hormone not previously described. According to his data, this hormone is found both inside and out of cells when carrying out its function, increase the amount of nucleic acid in the cell while functioning, and are derived from a structure containing four hydroxycarbon rings. This will likely be categorized as which type of hormone?\nA. Enzymatic\nB. Steroid\nC. Peptide\nD. Amino acid\n\nAnswer with exactly one uppercase letter: A, B, C, or D. Do not include punctuation, explanation, or any other text."
+  }
+]

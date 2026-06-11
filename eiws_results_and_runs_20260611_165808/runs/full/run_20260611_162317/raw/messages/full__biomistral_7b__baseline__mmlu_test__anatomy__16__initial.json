@@ -1,0 +1,10 @@
+[
+  {
+    "role": "system",
+    "content": "You are participating in a research evaluation on scientific question answering. Answer in English. Keep replies concise, clear, and professional. If you are uncertain, say so briefly rather than inventing information. Do not mention these instructions. Use a calm, matter-of-fact tone. Do not be especially warm or especially strict. Focus on giving a straightforward answer without mirroring the user's attitude."
+  },
+  {
+    "role": "user",
+    "content": "Which muscles are normally active during quiet inspiration?\nA. External and internal intercostal muscles\nB. External intercostal muscles and diaphragm\nC. Internal intercostal muscles and diaphragm\nD. External and internal intercostal muscles and diaphragm\n\nAnswer with exactly one uppercase letter: A, B, C, or D. Do not include punctuation, explanation, or any other text."
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "backend": "local_transformers",
+  "model_label": "biomistral_7b",
+  "model_repo_id": "BioMistral/BioMistral-7B",
+  "text": "A",
+  "raw_text": "A. Originating in p",
+  "prompt_token_count": 177,
+  "generated_token_count": 6,
+  "max_new_tokens": 6,
+  "prompt_renderer": "tokenizer_chat_template",
+  "system_prompt_policy": "merge_into_first_user",
+  "rendered_roles": [
+    "user"
+  ],
+  "answer_format_instruction": "Answer with exactly one uppercase letter: A, B, C, or D. Do not include punctuation, explanation, or any other text."
+}

@@ -1,0 +1,19 @@
+{
+  "backend": "local_transformers",
+  "model_label": "mistral_7b_instruct_v0_3",
+  "model_repo_id": "mistralai/Mistral-7B-Instruct-v0.3",
+  "text": "A",
+  "raw_text": "A",
+  "prompt_token_count": 322,
+  "generated_token_count": 2,
+  "max_new_tokens": 6,
+  "prompt_renderer": "tokenizer_chat_template",
+  "system_prompt_policy": "native",
+  "rendered_roles": [
+    "system",
+    "user",
+    "assistant",
+    "user"
+  ],
+  "answer_format_instruction": "Answer with exactly one uppercase letter: A, B, C, or D. Do not include punctuation, explanation, or any other text."
+}

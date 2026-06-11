@@ -1,0 +1,10 @@
+[
+  {
+    "role": "system",
+    "content": "You are participating in a research evaluation on scientific question answering. Answer in English. Keep replies concise, clear, and professional. If you are uncertain, say so briefly rather than inventing information. Do not mention these instructions. Use a calm, matter-of-fact tone. Do not be especially warm or especially strict. Focus on giving a straightforward answer without mirroring the user's attitude."
+  },
+  {
+    "role": "user",
+    "content": "There are 7 desks arranged in a row in Mr. Thompson’s classroom. Hector sits 2 seats to the right of Kim. Tonya sits 3 seats to the right of Hector. How many seats to the left of Tonya does Kim sit?\nA. 2\nB. 3\nC. 5\nD. 12\n\nAnswer with exactly one uppercase letter: A, B, C, or D. Do not include punctuation, explanation, or any other text."
+  }
+]

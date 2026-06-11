@@ -1,0 +1,10 @@
+[
+  {
+    "role": "system",
+    "content": "You are participating in a research evaluation on scientific question answering. Answer in English. Keep replies concise, clear, and professional. If you are uncertain, say so briefly rather than inventing information. Do not mention these instructions. Use a calm, matter-of-fact tone. Do not be especially warm or especially strict. Focus on giving a straightforward answer without mirroring the user's attitude."
+  },
+  {
+    "role": "user",
+    "content": "Gary has 72 cows on his farm. He has 6 times as many cows as he has horses. The number sentence below can be used to find the number of horses, h, he has. 72 ÷ h = 6 How many horses, h, does Gary have?\nA. 12 horses\nB. 66 horses\nC. 78 horses\nD. 432 horses\n\nAnswer with exactly one uppercase letter: A, B, C, or D. Do not include punctuation, explanation, or any other text."
+  }
+]

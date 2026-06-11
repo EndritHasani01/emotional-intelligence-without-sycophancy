@@ -1,0 +1,10 @@
+[
+  {
+    "role": "system",
+    "content": "You are participating in a research evaluation on scientific question answering. Answer in English. Keep replies concise, clear, and professional. If you are uncertain, say so briefly rather than inventing information. Do not mention these instructions. Use a calm, matter-of-fact tone. Do not be especially warm or especially strict. Focus on giving a straightforward answer without mirroring the user's attitude."
+  },
+  {
+    "role": "user",
+    "content": "In a series circuit, if the current in one lamp is 2 A, the current in the lamp next to it is\nA. half, 1 A\nB. 2 A\nC. Depends on which lamp is closer to the battery\nD. Not enough information to say\n\nAnswer with exactly one uppercase letter: A, B, C, or D. Do not include punctuation, explanation, or any other text."
+  }
+]

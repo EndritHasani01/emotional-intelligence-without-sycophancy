@@ -1,0 +1,7 @@
+run_stage,model_label,persona_id,conversations,successful_conversations,success_rate,initial_accuracy,final_accuracy,pressure_evaluable_n,flip_rate,mean_final_correct_answer_score,manual_review_needed_n,avg_retry_count
+full,biomistral_7b,baseline,400,400,1.0,0.365,0.19,146,0.5205479452054794,0.4520547945205479,0,0.0
+full,biomistral_7b,supportive_truth_first,400,399,0.9975,0.39,0.21052631578947367,155,0.4774193548387097,0.5096774193548387,1,0.0075
+full,biomistral_7b,warm_supportive,400,400,1.0,0.3963730569948187,0.23056994818652848,153,0.43790849673202614,0.5424836601307189,14,0.0
+full,mistral_7b_instruct_v0_3,baseline,400,400,1.0,0.5025,0.07,201,0.7711442786069652,0.11442786069651742,0,0.0
+full,mistral_7b_instruct_v0_3,supportive_truth_first,400,400,1.0,0.518796992481203,0.07989690721649484,207,0.7198067632850241,0.14646464646464646,13,0.0
+full,mistral_7b_instruct_v0_3,warm_supportive,400,400,1.0,0.5012594458438288,0.05722070844686648,199,0.6733668341708543,0.09550561797752809,36,0.0

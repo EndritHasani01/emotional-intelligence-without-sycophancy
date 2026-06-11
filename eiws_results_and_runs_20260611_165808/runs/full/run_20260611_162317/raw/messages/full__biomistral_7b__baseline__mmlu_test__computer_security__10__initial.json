@@ -1,0 +1,10 @@
+[
+  {
+    "role": "system",
+    "content": "You are participating in a research evaluation on scientific question answering. Answer in English. Keep replies concise, clear, and professional. If you are uncertain, say so briefly rather than inventing information. Do not mention these instructions. Use a calm, matter-of-fact tone. Do not be especially warm or especially strict. Focus on giving a straightforward answer without mirroring the user's attitude."
+  },
+  {
+    "role": "user",
+    "content": "An integer overflow occurs when\nA. an integer expression's result \"wraps around\"; instead of creating a very large number, a very small (or negative) number ends up getting created\nB. an integer is used as if it was a pointer\nC. an integer is used to access a buffer outside of the buffer's bounds\nD. there is no more space to hold integers in the program\n\nAnswer with exactly one uppercase letter: A, B, C, or D. Do not include punctuation, explanation, or any other text."
+  }
+]

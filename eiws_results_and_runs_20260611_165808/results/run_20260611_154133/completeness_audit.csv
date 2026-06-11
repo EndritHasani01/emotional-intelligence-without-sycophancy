@@ -1,0 +1,2 @@
+run_dir,run_stage,backend,models,expected_records,written_records,success_records,status_counts_json,complete
+/content/eiws_self_contained/runs/pilot/run_20260611_153728,pilot,local_transformers,"mistral_7b_instruct_v0_3,biomistral_7b",72,72,72,"{""success"": 72}",True

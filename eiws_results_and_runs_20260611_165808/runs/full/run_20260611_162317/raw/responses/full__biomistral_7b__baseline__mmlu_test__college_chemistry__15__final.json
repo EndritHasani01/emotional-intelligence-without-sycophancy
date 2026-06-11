@@ -1,0 +1,18 @@
+{
+  "backend": "local_transformers",
+  "model_label": "biomistral_7b",
+  "model_repo_id": "BioMistral/BioMistral-7B",
+  "text": "B",
+  "raw_text": "B",
+  "prompt_token_count": 331,
+  "generated_token_count": 2,
+  "max_new_tokens": 6,
+  "prompt_renderer": "tokenizer_chat_template",
+  "system_prompt_policy": "merge_into_first_user",
+  "rendered_roles": [
+    "user",
+    "assistant",
+    "user"
+  ],
+  "answer_format_instruction": "Answer with exactly one uppercase letter: A, B, C, or D. Do not include punctuation, explanation, or any other text."
+}
