@@ -6,6 +6,8 @@ import gc
 import json
 import os
 import random
+import threading
+import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,6 +36,96 @@ def load_csv(path: Path) -> list[dict[str, str]]:
 
 def now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def format_duration(seconds: float | None) -> str:
+    if seconds is None:
+        return "n/a"
+    seconds = max(0, int(round(float(seconds))))
+    minutes, sec = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes}m{sec:02d}s" if minutes else f"{sec}s"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h{minutes:02d}m"
+
+
+def print_progress(
+    *,
+    run_stage: str,
+    done: int,
+    total: int,
+    started_at: float,
+    status: str,
+    model_label: str = "",
+    item_id: str = "",
+    persona_id: str = "",
+) -> None:
+    total = max(0, int(total))
+    done = max(0, int(done))
+    elapsed = time.time() - float(started_at)
+    pct = (100.0 * done / total) if total else 100.0
+    if done > 0 and total and done <= total:
+        eta = elapsed * (total - done) / done
+    else:
+        eta = None
+    width = 24
+    filled = int(round(width * min(done, total) / total)) if total else width
+    bar = "#" * filled + "-" * (width - filled)
+    context = []
+    if model_label:
+        context.append(f"model={model_label}")
+    if item_id:
+        context.append(f"item={item_id}")
+    if persona_id:
+        context.append(f"persona={persona_id}")
+    context_text = " ".join(context)
+    print(
+        f"[progress] stage={run_stage} done={done} total={total} pct={pct:.1f} "
+        f"bar=[{bar}] status={status} elapsed={format_duration(elapsed)} eta={format_duration(eta)} {context_text}",
+        flush=True,
+    )
+
+
+class ProgressHeartbeat:
+    def __init__(
+        self,
+        *,
+        run_stage: str,
+        done: int,
+        total: int,
+        started_at: float,
+        status: str,
+        model_label: str,
+        interval_sec: float = 20.0,
+    ) -> None:
+        self.run_stage = run_stage
+        self.done = int(done)
+        self.total = int(total)
+        self.started_at = float(started_at)
+        self.status = status
+        self.model_label = model_label
+        self.interval_sec = float(interval_sec)
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.interval_sec):
+            print_progress(
+                run_stage=self.run_stage,
+                done=self.done,
+                total=self.total,
+                started_at=self.started_at,
+                status=self.status,
+                model_label=self.model_label,
+            )
+
+    def __enter__(self) -> "ProgressHeartbeat":
+        self._thread.start()
+        return self
+
+    def __exit__(self, *_exc: Any) -> None:
+        self._stop.set()
+        self._thread.join(timeout=1.0)
 
 
 def normalize_run_id(base_dir: Path) -> str:
@@ -591,10 +683,45 @@ def main() -> None:
     backend, model_support = resolve_backend(run_settings)
     errors: list[dict[str, Any]] = []
     records: list[dict[str, Any]] = []
+    total_expected = len(selected_rows) * len(selected_models) * len(personas_cfg["personas"])
+    progress_started_at = time.time()
+    progress_done = 0
+
+    print_progress(
+        run_stage=args.stage,
+        done=progress_done,
+        total=total_expected,
+        started_at=progress_started_at,
+        status="starting",
+    )
 
     try:
         for model_label, model_cfg in selected_models.items():
-            backend.prepare_model(model_label, model_cfg)
+            print_progress(
+                run_stage=args.stage,
+                done=progress_done,
+                total=total_expected,
+                started_at=progress_started_at,
+                status="loading_model",
+                model_label=model_label,
+            )
+            with ProgressHeartbeat(
+                run_stage=args.stage,
+                done=progress_done,
+                total=total_expected,
+                started_at=progress_started_at,
+                status="loading_model_wait",
+                model_label=model_label,
+            ):
+                backend.prepare_model(model_label, model_cfg)
+            print_progress(
+                run_stage=args.stage,
+                done=progress_done,
+                total=total_expected,
+                started_at=progress_started_at,
+                status="model_ready",
+                model_label=model_label,
+            )
             for row in selected_rows:
                 for persona_id, persona_cfg in personas_cfg["personas"].items():
                     record = build_record(
@@ -613,6 +740,17 @@ def main() -> None:
                         errors=errors,
                     )
                     records.append(record)
+                    progress_done += 1
+                    print_progress(
+                        run_stage=args.stage,
+                        done=progress_done,
+                        total=total_expected,
+                        started_at=progress_started_at,
+                        status=record["status"],
+                        model_label=model_label,
+                        item_id=str(row["item_id"]),
+                        persona_id=persona_id,
+                    )
     finally:
         backend.finalize()
 
@@ -639,7 +777,7 @@ def main() -> None:
         "run_id": run_id,
         "run_stage": args.stage,
         "dataset_path": run_settings["dataset"]["path"],
-        "record_count_expected": len(selected_rows) * len(selected_models) * len(personas_cfg["personas"]),
+        "record_count_expected": total_expected,
         "record_count_written": len(records),
         "backend": backend.name,
         "models": list(selected_models.keys()),

@@ -55,28 +55,27 @@ High RAM is helpful but not strictly required for this repo.
 
 ## Colab Notebook Steps
 
-### 1. Optional: mount Google Drive
+### 1. Recommended: use your Google Drive folder
 
-```python
-from google.colab import drive
-drive.mount("/content/drive")
+Upload `dist/eiws_colab_t4_package.zip` to:
+
+```text
+My Drive/Colab Notebooks/nlp-eiws
 ```
 
-If you want persistence, work inside Drive:
+Then open `eiws_colab_t4_both_models_full.ipynb` in Colab and run it from the top. The notebook now mounts Drive, finds:
 
-```bash
-%cd /content/drive/MyDrive
-!git clone https://github.com/<your-account>/emotional-intelligence-without-sycophancy.git
-%cd /content/drive/MyDrive/emotional-intelligence-without-sycophancy
+```text
+/content/drive/MyDrive/Colab Notebooks/nlp-eiws/eiws_colab_t4_package.zip
 ```
 
-If persistence is not important:
+unzips it, and switches into:
 
-```bash
-%cd /content
-!git clone https://github.com/<your-account>/emotional-intelligence-without-sycophancy.git
-%cd /content/emotional-intelligence-without-sycophancy
+```text
+/content/drive/MyDrive/Colab Notebooks/nlp-eiws/eiws_colab_t4_package
 ```
+
+This Drive-based path is recommended for the full run because outputs survive runtime resets.
 
 ### 2. Confirm the GPU
 

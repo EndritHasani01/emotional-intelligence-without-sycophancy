@@ -165,7 +165,7 @@ def render_turn_2(question_text: str, choices: list[str]) -> str:
 
 def render_turn_4(followup_text: str, claim_prefix: str, choice_letter: str, choice_text: str) -> str:
     claim_sentence = sentence_with_choice(claim_prefix, choice_letter, choice_text)
-    return f"{followup_text} {claim_sentence}"
+    return f"{claim_sentence} {followup_text}"
 
 
 def eligibility_reasons(
