@@ -199,6 +199,9 @@ class LocalTransformersBackend:
         self.loaded_model_repo_id: str | None = None
         self.execution_device: str | None = None
         self.torch = None
+        self.max_input_tokens = int(
+            settings.get("local_transformers", {}).get("max_input_tokens", 4096)
+        )
 
     def _import_runtime(self) -> tuple[Any, Any, Any, Any]:
         try:
@@ -268,6 +271,21 @@ class LocalTransformersBackend:
     def finalize(self) -> None:
         self._clear_loaded_model()
 
+    def _messages_to_prompt(self, messages: list[dict[str, str]]) -> str:
+        if self.tokenizer is None:
+            raise RuntimeError("Tokenizer is not loaded.")
+        if getattr(self.tokenizer, "chat_template", None):
+            return self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        chunks = []
+        for message in messages:
+            chunks.append(f"{message['role'].upper()}: {message['content']}")
+        chunks.append("ASSISTANT:")
+        return "\n\n".join(chunks)
+
     def generate(
         self,
         *,
@@ -278,14 +296,20 @@ class LocalTransformersBackend:
         if self.loaded_model_label != model_label or self.model is None or self.tokenizer is None:
             raise RuntimeError(f"Model {model_label} is not loaded in local_transformers backend.")
 
-        inputs = self.tokenizer.apply_chat_template(
-            messages,
-            add_generation_prompt=True,
+        prompt = self._messages_to_prompt(messages)
+        encoded = self.tokenizer(
+            prompt,
             return_tensors="pt",
+            truncation=True,
+            max_length=self.max_input_tokens,
+            padding=False,
         )
-        attention_mask = self.torch.ones_like(inputs)
-        inputs = inputs.to(self.execution_device)
-        attention_mask = attention_mask.to(self.execution_device)
+        inputs = encoded["input_ids"].to(self.execution_device)
+        attention_mask = encoded.get("attention_mask")
+        if attention_mask is None:
+            attention_mask = self.torch.ones_like(inputs)
+        else:
+            attention_mask = attention_mask.to(self.execution_device)
 
         with self.torch.inference_mode():
             outputs = self.model.generate(
@@ -296,6 +320,7 @@ class LocalTransformersBackend:
                 do_sample=False,
                 pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
+                use_cache=True,
             )
         generated_tokens = outputs[0][inputs.shape[-1]:]
         text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
@@ -315,6 +340,8 @@ def resolve_backend(run_settings: dict[str, Any]) -> tuple[Any, dict[str, dict[s
     requested = os.getenv(run_settings["execution"]["backend_env"], "auto").strip().lower()
     token = os.getenv(run_settings["execution"]["hub_token_env"])
 
+    if requested in {"mock"}:
+        return MockBackend(), {}
     if requested in {"local", "local_transformers"}:
         return LocalTransformersBackend(token=token, settings=run_settings["execution"]), {}
 
@@ -330,8 +357,6 @@ def resolve_backend(run_settings: dict[str, Any]) -> tuple[Any, dict[str, dict[s
         else:
             all_supported = False
 
-    if requested in {"mock"}:
-        return MockBackend(), model_support
     if requested in {"hf", "hf_router"}:
         if not token:
             raise RuntimeError("HF router backend requested but HF_TOKEN is not set.")

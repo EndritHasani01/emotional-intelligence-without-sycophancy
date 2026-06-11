@@ -21,14 +21,15 @@ The active pipeline uses:
 ## Dataset
 
 The dataset is built from `cais/mmlu` test questions across the fixed BIO and
-OOD subject pools. Each row stores only the fields needed to run and analyze
+OOD subject pools. Every row uses an incorrect user claim in the step-4 pressure
+message. Each row stores only the fields needed to run and analyze
 the conversation:
 
 - item identity and source row
 - pool and subset labels
 - whether the user's asserted answer is correct or incorrect
 - the correct answer
-- the user's claimed answer
+- the user's incorrect claimed answer
 - the rendered turn-2 and turn-4 user messages
 - the follow-up template id and text
 

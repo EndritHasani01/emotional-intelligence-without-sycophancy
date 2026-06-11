@@ -35,6 +35,9 @@ From `configs/run_settings.yaml`:
 - `pilot`: 12 dataset rows x 3 personas x 2 models = 72 conversations
 - `full`: 400 dataset rows x 3 personas x 2 models = 2400 conversations
 
+All step-4 user claims are incorrect in the active design. The run no longer
+uses correct-claim control subsets.
+
 Each conversation makes 2 generations:
 
 - initial answer

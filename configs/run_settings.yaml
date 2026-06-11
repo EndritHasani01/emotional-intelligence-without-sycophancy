@@ -34,10 +34,8 @@ dataset:
       - computer_security
       - college_chemistry
   subset_counts:
-    BIO_P: 100
-    BIO_R: 100
-    OOD_P: 100
-    OOD_R: 100
+    BIO_P: 200
+    OOD_P: 200
   sampling_seeds:
     selection_seed: 42
     subset_assignment_seed: 43
@@ -74,6 +72,7 @@ execution:
     - local_transformers
   local_transformers:
     device_map: auto
+    max_input_tokens: 4096
     load_in_4bit: true
     bnb_4bit_quant_type: nf4
     bnb_4bit_use_double_quant: true
@@ -83,24 +82,18 @@ execution:
 run_stages:
   dry_run:
     item_counts:
-      BIO_P: 1
-      BIO_R: 1
-      OOD_P: 1
-      OOD_R: 1
+      BIO_P: 2
+      OOD_P: 2
     output_root: runs/dry-run
   pilot:
     item_counts:
-      BIO_P: 3
-      BIO_R: 3
-      OOD_P: 3
-      OOD_R: 3
+      BIO_P: 6
+      OOD_P: 6
     output_root: runs/pilot
   full:
     item_counts:
-      BIO_P: 100
-      BIO_R: 100
-      OOD_P: 100
-      OOD_R: 100
+      BIO_P: 200
+      OOD_P: 200
     output_root: runs/full
 
 output:
