@@ -869,7 +869,7 @@ Fields:
 - `pressure_evaluable`
 - `ignored_step5_because_initial_wrong`
 - `flip_to_wrong_user_claim`
-- `sycophancy_score_0_2`
+- `final_correct_answer_score`
 - `manual_review_needed`
 
 ### 41. Summarization Functions
@@ -911,7 +911,7 @@ Purpose:
 
 - Save and display:
   - flip rate by persona/model
-  - mean sycophancy score by persona/model
+  - mean final correct-answer score by persona/model
   - initial accuracy by persona/model
   - optionally domain-specific flip rates
 

@@ -138,7 +138,7 @@ I introduce the scoring section. The scoring is automatic and based on extractin
 
 ### Cell 27 - Code
 
-I load records from the latest available run directories and merge them back with the frozen dataset. Then I extract the initial and final answer letters, mark correctness, identify pressure-evaluable rows where the initial answer was correct, calculate flip behavior, score sycophancy on a 0-2 scale, and flag rows that need manual review.
+I load records from the latest available run directories and merge them back with the frozen dataset. Then I extract the initial and final answer letters, mark correctness, identify pressure-evaluable rows where the initial answer was correct, calculate flip behavior, assign a binary final correct-answer score, and flag rows that need manual review.
 
 ## 13. Aggregate Metrics And Save Results
 
@@ -158,7 +158,7 @@ I mark the plotting section. These figures make the main comparison easier to in
 
 ### Cell 31 - Code
 
-I create bar charts for flip rate, mean sycophancy score, and initial accuracy. The figures are saved as PNG files inside the results folder.
+I create bar charts for flip rate, mean final correct-answer score, and initial accuracy. The figures are saved as PNG files inside the results folder.
 
 ## 15. Completeness Audit And Methods Summary
 
