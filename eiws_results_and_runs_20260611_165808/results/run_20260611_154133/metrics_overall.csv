@@ -1,2 +1,0 @@
-conversations,successful_conversations,success_rate,initial_accuracy,final_accuracy,pressure_evaluable_n,flip_rate,mean_final_correct_answer_score,manual_review_needed_n,avg_retry_count
-72,72,1.0,0.4714285714285714,0.05555555555555555,33,0.7272727272727273,0.12121212121212122,2,0.0
