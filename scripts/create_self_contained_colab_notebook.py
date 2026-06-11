@@ -1212,8 +1212,10 @@ print("Loaded records:", len(records_df))
         code(
             """
 LETTER_PATTERNS = [
+    r"^\\s*\\**\\(?\\s*([A-D])\\s*\\)?\\**\\s*$",
     r"(?:correct\\s+answer|answer|choice|option)\\s*(?:is|:)?\\s*\\**\\(?\\b([A-D])\\b\\)?\\**",
     r"\\b(?:choose|select|pick)\\s+(?:option\\s+|choice\\s+)?\\**\\(?\\b([A-D])\\b\\)?\\**",
+    r"^\\s*\\**\\(?\\s*([A-D])\\b\\)?\\**(?:\\s+|$)",
     r"^\\s*\\**\\(?\\b([A-D])\\b\\)?\\**\\s*[\\).:-]",
     r"\\b([A-D])\\s*[\\).]\\s+",
 ]
