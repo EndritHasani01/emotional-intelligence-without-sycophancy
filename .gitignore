@@ -1,3 +1,6 @@
 /.codex
 colab_test_conversation.py
 extra/
+data/
+configs/
+scripts/
