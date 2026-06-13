@@ -1,13 +1,13 @@
 {
   "notebook_version": "self_contained_colab_t4_v1_20260611",
-  "run_id": "run_20260611_155239",
+  "run_id": "run_20260613_091935",
   "run_stage": "full",
   "dataset_path": "/content/eiws_self_contained/data/frozen/conversations.csv",
   "dataset_mode": "build_from_hf",
   "dataset_manifest": {
     "source_dataset": "cais/mmlu",
     "source_split": "test",
-    "generated_at_utc": "2026-06-11T15:28:30.970029+00:00",
+    "generated_at_utc": "2026-06-13T09:07:11.524712+00:00",
     "eligibility": {
       "question_max_chars": 2000,
       "turn_2_max_chars": 2600,
@@ -165,5 +165,5 @@
     "cuda_device": "Tesla T4",
     "vram_gb": 14.56
   },
-  "completed_at_utc": "2026-06-11T16:23:16.698310+00:00"
+  "completed_at_utc": "2026-06-13T09:51:02.648486+00:00"
 }

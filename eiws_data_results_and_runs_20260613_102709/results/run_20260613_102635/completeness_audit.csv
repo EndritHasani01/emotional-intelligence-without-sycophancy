@@ -1,0 +1,3 @@
+run_dir,run_stage,backend,models,expected_records,written_records,success_records,status_counts_json,complete
+/content/eiws_self_contained/runs/full/run_20260613_091935,full,local_transformers,mistral_7b_instruct_v0_3,1200,1200,1200,"{""success"": 1200}",True
+/content/eiws_self_contained/runs/full/run_20260613_095102,full,local_transformers,biomistral_7b,1200,1200,1199,"{""partial_failure"": 1, ""success"": 1199}",True

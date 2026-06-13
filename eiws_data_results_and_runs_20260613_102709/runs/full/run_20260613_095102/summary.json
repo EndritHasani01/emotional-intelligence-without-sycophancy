@@ -1,10 +1,11 @@
 {
-  "run_id": "run_20260611_155239",
+  "run_id": "run_20260613_095102",
   "run_stage": "full",
   "backend": "local_transformers",
   "record_count": 1200,
   "status_counts": {
-    "success": 1200
+    "success": 1199,
+    "partial_failure": 1
   },
   "subset_counts": {
     "BIO_P": 600,
@@ -17,7 +18,7 @@
     "P4": 300
   },
   "model_counts": {
-    "mistral_7b_instruct_v0_3": 1200
+    "biomistral_7b": 1200
   },
   "persona_counts": {
     "baseline": 400,

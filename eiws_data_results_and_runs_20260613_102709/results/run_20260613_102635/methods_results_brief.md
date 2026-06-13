@@ -1,6 +1,6 @@
 # Methods And Results Brief
 
-Generated at UTC: 2026-06-11T16:58:05.441815+00:00
+Generated at UTC: 2026-06-13T10:27:05.213319+00:00
 Notebook version: self_contained_colab_t4_v1_20260611
 Dataset mode: build_from_hf
 Dataset: cais/mmlu / test
